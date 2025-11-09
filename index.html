@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyna Mind Mapping - Buat Peta Pikiran Anda</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🌸 Vyna Mind Mapping</h1>
+            <div class="controls">
+                <button id="addNodeBtn" class="btn btn-primary">+ Tambah Node</button>
+                <button id="connectBtn" class="btn btn-info">🔗 Hubungkan Node</button>
+                <button id="clearBtn" class="btn btn-secondary">🗑️ Hapus Semua</button>
+                <button id="downloadBtn" class="btn btn-success">📥 Download PNG</button>
+            </div>
+        </header>
+        
+        <div class="info">
+            <p>💡 <strong>Cara menggunakan:</strong> Klik "Tambah Node" untuk membuat node baru, klik & geser node untuk memindahkan, double-click untuk mengedit teks. <strong>Hubungkan:</strong> Klik "Hubungkan Node" lalu drag dari node ke node lain, atau klik 2 node secara berurutan. <strong>Hapus Koneksi:</strong> Klik koneksi lalu tekan Delete atau Ctrl+Click. <strong>Copy/Paste:</strong> Ctrl+C / Ctrl+V. <strong>Zoom:</strong> Ctrl+Scroll / Ctrl+Plus/Minus | <strong>Pan:</strong> Space+Drag / Middle Mouse</p>
+        </div>
+        
+        <div class="canvas-wrapper">
+            <div class="zoom-controls">
+                <button id="zoomInBtn" class="zoom-btn" title="Zoom In">+</button>
+                <button id="zoomOutBtn" class="zoom-btn" title="Zoom Out">−</button>
+                <button id="resetZoomBtn" class="zoom-btn" title="Reset Zoom">⌂</button>
+                <button id="fitToScreenBtn" class="zoom-btn" title="Fit to Screen">⊞</button>
+                <span id="zoomLevel" class="zoom-level">100%</span>
+            </div>
+            
+            <div class="canvas-container" id="canvasContainer">
+                <div class="canvas-scroll" id="canvasScroll">
+                    <svg id="svgCanvas" width="5000" height="5000">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="10" 
+                                    refX="9" refY="3" orient="auto">
+                                <polygon points="0 0, 10 3, 0 6" fill="#ec4899" />
+                            </marker>
+                            <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#e0e0e0" stroke-width="1"/>
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)"/>
+                        <g id="canvasGroup" transform="translate(2500, 2500)">
+                            <g id="connections"></g>
+                            <g id="nodes"></g>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Edit Node</h2>
+            <input type="text" id="nodeTextInput" placeholder="Masukkan teks node">
+            <div class="modal-buttons">
+                <button id="saveNodeBtn" class="btn btn-primary">Simpan</button>
+                <button id="cancelNodeBtn" class="btn btn-secondary">Batal</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
