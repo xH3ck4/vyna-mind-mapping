@@ -23,6 +23,14 @@ class MindMap {
         this.justClosedModal = false;
         this.copiedNode = null;
         this.selectedConnection = null;
+        this.lastTapTime = 0;
+        this.lastTapNode = null;
+        this.lastPinchDistance = 0;
+        this.isPinching = false;
+        this.longPressTimer = null;
+        this.longPressNode = null;
+        this.touchStartPos = { x: 0, y: 0 };
+        this.mobileContextMenu = null;
         
         this.init();
     }
@@ -34,6 +42,14 @@ class MindMap {
         this.connectionsGroup = document.getElementById('connections');
         this.container = document.getElementById('canvasContainer');
         this.canvasScroll = document.getElementById('canvasScroll');
+        this.infoPanel = document.getElementById('infoPanel');
+        this.toggleInfoBtn = document.getElementById('toggleInfoBtn');
+        
+        // Hide info panel by default on all devices
+        this.infoPanel.classList.add('hidden');
+        
+        // Check if mobile
+        this.isMobile = this.checkIfMobile();
         
         // Center scroll on load
         this.centerCanvas();
@@ -46,6 +62,19 @@ class MindMap {
         document.getElementById('saveNodeBtn').addEventListener('click', () => this.saveNodeText());
         document.getElementById('cancelNodeBtn').addEventListener('click', () => this.closeEditModal());
         document.querySelector('.close').addEventListener('click', () => this.closeEditModal());
+        this.toggleInfoBtn.addEventListener('click', () => this.toggleInfoPanel());
+        
+        // FAB for mobile
+        const fabBtn = document.getElementById('fabAddNode');
+        if (fabBtn) {
+            fabBtn.addEventListener('click', () => {
+                this.addNode();
+                // Haptic feedback
+                if (navigator.vibrate) {
+                    navigator.vibrate(30);
+                }
+            });
+        }
         
         // Copy paste handlers
         document.addEventListener('copy', (e) => this.handleCopy(e));
@@ -201,6 +230,152 @@ class MindMap {
             this.updateCursor();
         });
         
+        // Touch event handlers for mobile
+        let touchStartHandler = (e) => {
+            // Convert touch to mouse-like event
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                this.touchStartPos = { x: touch.clientX, y: touch.clientY };
+                
+                // Close mobile context menu if open
+                this.closeMobileContextMenu();
+                
+                // Check if touching a node for long-press
+                const node = this.getNodeAt(touch.clientX, touch.clientY);
+                if (node && this.isMobile) {
+                    this.longPressNode = node;
+                    this.longPressTimer = setTimeout(() => {
+                        this.showMobileContextMenu(node, touch.clientX, touch.clientY);
+                        // Haptic feedback if available
+                        if (navigator.vibrate) {
+                            navigator.vibrate(50);
+                        }
+                    }, 500); // 500ms long-press
+                }
+                
+                const mouseEvent = {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    button: 0,
+                    target: e.target,
+                    closest: (selector) => e.target.closest ? e.target.closest(selector) : null,
+                    preventDefault: () => e.preventDefault(),
+                    stopPropagation: () => e.stopPropagation()
+                };
+                mouseDownHandler(mouseEvent);
+            }
+        };
+        
+        let touchMoveHandler = (e) => {
+            // Cancel long-press if moved
+            if (this.longPressTimer) {
+                const touch = e.touches[0];
+                const moveDistance = Math.sqrt(
+                    Math.pow(touch.clientX - this.touchStartPos.x, 2) +
+                    Math.pow(touch.clientY - this.touchStartPos.y, 2)
+                );
+                if (moveDistance > 10) { // 10px threshold
+                    clearTimeout(this.longPressTimer);
+                    this.longPressTimer = null;
+                    this.longPressNode = null;
+                }
+            }
+            
+            // Handle pinch to zoom with two fingers
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                const distance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+                
+                if (this.isPinching && this.lastPinchDistance > 0) {
+                    const delta = distance / this.lastPinchDistance;
+                    this.setZoom(this.zoomLevel * delta);
+                }
+                
+                this.isPinching = true;
+                this.lastPinchDistance = distance;
+                return;
+            }
+            
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                const mouseEvent = {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    buttons: 1,
+                    target: e.target,
+                    preventDefault: () => e.preventDefault(),
+                    stopPropagation: () => e.stopPropagation()
+                };
+                mouseMoveHandler(mouseEvent);
+                if (this.isDragging || this.isConnecting) {
+                    e.preventDefault(); // Prevent scrolling while dragging
+                }
+            }
+        };
+        
+        let touchEndHandler = (e) => {
+            // Clear long-press timer
+            if (this.longPressTimer) {
+                clearTimeout(this.longPressTimer);
+                this.longPressTimer = null;
+                this.longPressNode = null;
+            }
+            
+            // Reset pinch state
+            if (e.touches.length < 2) {
+                this.isPinching = false;
+                this.lastPinchDistance = 0;
+            }
+            
+            // If pinching just ended, don't process other events
+            if (this.isPinching) {
+                return;
+            }
+            
+            const touch = e.changedTouches[0];
+            
+            // Handle double tap for editing nodes on mobile
+            if (!this.hasDragged) {
+                const node = this.getNodeAt(touch.clientX, touch.clientY);
+                const currentTime = Date.now();
+                const tapDelay = currentTime - this.lastTapTime;
+                
+                if (node && this.lastTapNode === node && tapDelay < 300) {
+                    // Double tap detected - open edit modal
+                    this.selectedNode = node;
+                    this.openEditModal(node);
+                    this.lastTapTime = 0;
+                    this.lastTapNode = null;
+                    return;
+                }
+                
+                this.lastTapTime = currentTime;
+                this.lastTapNode = node;
+            }
+            
+            const mouseEvent = {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                button: 0,
+                target: e.target,
+                detail: e.detail || 1,
+                preventDefault: () => e.preventDefault(),
+                stopPropagation: () => e.stopPropagation()
+            };
+            mouseUpHandler(mouseEvent);
+        };
+        
+        this.container.addEventListener('touchstart', touchStartHandler, { passive: false });
+        this.container.addEventListener('touchmove', touchMoveHandler, { passive: false });
+        this.container.addEventListener('touchend', touchEndHandler, { passive: false });
+        this.container.addEventListener('touchcancel', touchEndHandler, { passive: false });
+        
         // Prevent context menu and middle mouse button default behavior
         this.container.addEventListener('contextmenu', (e) => e.preventDefault());
         
@@ -209,6 +384,17 @@ class MindMap {
             this.lastScrollLeft = this.container.scrollLeft;
             this.lastScrollTop = this.container.scrollTop;
         });
+    }
+    
+    checkIfMobile() {
+        return window.innerWidth <= 768 || 
+               ('ontouchstart' in window) || 
+               (navigator.maxTouchPoints > 0);
+    }
+    
+    toggleInfoPanel() {
+        this.infoPanel.classList.toggle('hidden');
+        this.toggleInfoBtn.classList.toggle('active');
     }
     
     centerCanvas() {
@@ -325,14 +511,20 @@ class MindMap {
             x: svgX,
             y: svgY,
             text: 'Node Baru',
-            width: 120,
-            height: 60
+            width: this.isMobile ? 140 : 120,
+            height: this.isMobile ? 70 : 60
         };
         
         this.nodes.push(node);
         this.selectedNode = node;
         this.updateDisplay();
-        this.openEditModal(node);
+        
+        // Delay modal opening on mobile to avoid conflicts
+        if (this.isMobile) {
+            setTimeout(() => this.openEditModal(node), 100);
+        } else {
+            this.openEditModal(node);
+        }
     }
     
     createNodeElement(node) {
@@ -357,9 +549,11 @@ class MindMap {
         text.setAttribute('y', node.y);
         text.textContent = node.text;
         
-        // Adjust width based on text length
+        // Adjust width based on text length with mobile consideration
         const textLength = node.text.length;
-        node.width = Math.max(120, textLength * 8 + 40);
+        const minWidth = this.isMobile ? 140 : 120;
+        const charWidth = this.isMobile ? 9 : 8;
+        node.width = Math.max(minWidth, textLength * charWidth + 40);
         rect.setAttribute('width', node.width);
         rect.setAttribute('x', node.x - node.width / 2);
         
@@ -460,6 +654,9 @@ class MindMap {
         const svgX = (screenX - containerRect.left + scrollX - 2500) / this.zoomLevel;
         const svgY = (screenY - containerRect.top + scrollY - 2500) / this.zoomLevel;
         
+        // Increase touch target on mobile
+        const hitRadius = this.isMobile ? 20 : 10;
+        
         // Check each connection to see if click is near the line
         for (let conn of this.connections) {
             const fromNode = this.nodes.find(n => n.id === conn.fromId);
@@ -501,8 +698,8 @@ class MindMap {
             const dy = svgY - yy;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // Check if click is within 10 pixels of the line
-            if (distance < 10 / this.zoomLevel) {
+            // Check if click is within hit radius of the line
+            if (distance < hitRadius / this.zoomLevel) {
                 return conn;
             }
         }
@@ -574,8 +771,12 @@ class MindMap {
                     this.connectNodes(this.connectSourceNode, node);
                     this.connectSourceNode = null;
                     this.connectMode = false;
-                    document.getElementById('connectBtn').classList.remove('active');
-                    document.getElementById('connectBtn').textContent = '🔗 Hubungkan Node';
+                    const btn = document.getElementById('connectBtn');
+                    btn.classList.remove('active');
+                    const btnIcon = btn.querySelector('.btn-icon');
+                    const btnText = btn.querySelector('.btn-text');
+                    if (btnIcon) btnIcon.textContent = '🔗';
+                    if (btnText) btnText.textContent = 'Hubungkan';
                     this.selectedNode = node;
                 } else {
                     this.connectSourceNode = node;
@@ -601,8 +802,12 @@ class MindMap {
                 // Cancel connect mode if clicking on empty canvas
                 this.connectMode = false;
                 this.connectSourceNode = null;
-                document.getElementById('connectBtn').classList.remove('active');
-                document.getElementById('connectBtn').textContent = '🔗 Hubungkan Node';
+                const btn = document.getElementById('connectBtn');
+                btn.classList.remove('active');
+                const btnIcon = btn.querySelector('.btn-icon');
+                const btnText = btn.querySelector('.btn-text');
+                if (btnIcon) btnIcon.textContent = '🔗';
+                if (btnText) btnText.textContent = 'Hubungkan';
             }
             this.selectedNode = null;
             this.selectedConnection = null;
@@ -700,6 +905,12 @@ class MindMap {
             this.selectedNode.x = svgX - this.dragOffset.x / this.zoomLevel;
             this.selectedNode.y = svgY - this.dragOffset.y / this.zoomLevel;
             
+            // Add dragging class for visual feedback
+            const nodeElement = this.nodesGroup.querySelector(`[data-id="${this.selectedNode.id}"]`);
+            if (nodeElement && !nodeElement.classList.contains('dragging')) {
+                nodeElement.classList.add('dragging');
+            }
+            
             // Update connections
             this.updateConnections();
             this.updateDisplay();
@@ -707,6 +918,14 @@ class MindMap {
     }
     
     handleMouseUp(e) {
+        // Remove dragging class
+        if (this.selectedNode) {
+            const nodeElement = this.nodesGroup.querySelector(`[data-id="${this.selectedNode.id}"]`);
+            if (nodeElement) {
+                nodeElement.classList.remove('dragging');
+            }
+        }
+        
         this.isDragging = false;
         
         // If connecting, check if we released over a node
@@ -718,6 +937,10 @@ class MindMap {
             
             if (node && node.id !== this.connectingStartNode.id) {
                 this.connectNodes(this.connectingStartNode, node);
+                // Haptic feedback
+                if (navigator.vibrate) {
+                    navigator.vibrate(30);
+                }
             }
             
             this.isConnecting = false;
@@ -787,10 +1010,30 @@ class MindMap {
     }
     
     clearAll() {
-        if (confirm('Apakah Anda yakin ingin menghapus semua node dan koneksi?')) {
+        if (this.nodes.length === 0 && this.connections.length === 0) {
+            alert('Tidak ada yang perlu dihapus.');
+            return;
+        }
+        
+        if (confirm('Apakah Anda yakin ingin menghapus SEMUA node dan koneksi?')) {
             this.nodes = [];
             this.connections = [];
             this.selectedNode = null;
+            this.selectedConnection = null;
+            this.connectMode = false;
+            this.connectSourceNode = null;
+            this.isConnecting = false;
+            this.connectingStartNode = null;
+            if (this.tempConnectionLine) {
+                this.tempConnectionLine.remove();
+                this.tempConnectionLine = null;
+            }
+            const btn = document.getElementById('connectBtn');
+            btn.classList.remove('active');
+            const btnIcon = btn.querySelector('.btn-icon');
+            const btnText = btn.querySelector('.btn-text');
+            if (btnIcon) btnIcon.textContent = '🔗';
+            if (btnText) btnText.textContent = 'Hubungkan';
             this.updateDisplay();
         }
     }
@@ -798,9 +1041,15 @@ class MindMap {
     async downloadAsPNG() {
         try {
             // Show loading
-            const originalText = document.getElementById('downloadBtn').textContent;
-            document.getElementById('downloadBtn').textContent = '⏳ Mengunduh...';
-            document.getElementById('downloadBtn').disabled = true;
+            const downloadBtn = document.getElementById('downloadBtn');
+            const btnIcon = downloadBtn.querySelector('.btn-icon');
+            const btnText = downloadBtn.querySelector('.btn-text');
+            const originalIcon = btnIcon ? btnIcon.textContent : '';
+            const originalText = btnText ? btnText.textContent : '';
+            
+            if (btnIcon) btnIcon.textContent = '⏳';
+            if (btnText) btnText.textContent = 'Mengunduh...';
+            downloadBtn.disabled = true;
             
             // Create a temporary SVG with all nodes visible
             const tempSvg = this.svg.cloneNode(true);
@@ -959,29 +1208,36 @@ class MindMap {
             document.body.removeChild(exportContainer);
             
             // Restore button
-            document.getElementById('downloadBtn').textContent = originalText;
-            document.getElementById('downloadBtn').disabled = false;
+            if (btnIcon) btnIcon.textContent = originalIcon;
+            if (btnText) btnText.textContent = originalText;
+            downloadBtn.disabled = false;
         } catch (error) {
             console.error('Error downloading image:', error);
             alert('Terjadi kesalahan saat mengunduh gambar. Silakan coba lagi.');
-            document.getElementById('downloadBtn').textContent = '📥 Download PNG';
-            document.getElementById('downloadBtn').disabled = false;
+            if (btnIcon) btnIcon.textContent = '📥';
+            if (btnText) btnText.textContent = 'Download';
+            downloadBtn.disabled = false;
         }
     }
     
     toggleConnectMode() {
         this.connectMode = !this.connectMode;
         const btn = document.getElementById('connectBtn');
+        const btnIcon = btn.querySelector('.btn-icon');
+        const btnText = btn.querySelector('.btn-text');
+        
         if (this.connectMode) {
             btn.classList.add('active');
-            btn.textContent = '✓ Mode Hubung Aktif';
+            if (btnIcon) btnIcon.textContent = '✓';
+            if (btnText) btnText.textContent = 'Mode Aktif';
             this.container.style.cursor = 'crosshair';
             if (this.selectedNode) {
                 this.connectSourceNode = this.selectedNode;
             }
         } else {
             btn.classList.remove('active');
-            btn.textContent = '🔗 Hubungkan Node';
+            if (btnIcon) btnIcon.textContent = '🔗';
+            if (btnText) btnText.textContent = 'Hubungkan';
             this.connectSourceNode = null;
             this.isConnecting = false;
             this.connectingStartNode = null;
@@ -1082,22 +1338,176 @@ class MindMap {
             this.updateDisplay();
         }
     }
+    
+    showMobileContextMenu(node, x, y) {
+        // Close any existing menu
+        this.closeMobileContextMenu();
+        
+        // Create mobile context menu
+        const menu = document.createElement('div');
+        menu.className = 'mobile-context-menu';
+        menu.id = 'mobileContextMenu';
+        
+        // Haptic feedback
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+        
+        // Menu items
+        const menuItems = [
+            {
+                icon: '✏️',
+                text: 'Edit',
+                action: () => {
+                    this.selectedNode = node;
+                    this.openEditModal(node);
+                    this.closeMobileContextMenu();
+                }
+            },
+            {
+                icon: '📋',
+                text: 'Copy',
+                action: () => {
+                    this.selectedNode = node;
+                    this.copyNode();
+                    this.showToast('Node disalin!');
+                    this.closeMobileContextMenu();
+                }
+            },
+            {
+                icon: '📌',
+                text: 'Paste',
+                action: () => {
+                    if (this.copiedNode) {
+                        this.selectedNode = node;
+                        this.pasteNode();
+                        this.showToast('Node ditempel!');
+                    } else {
+                        this.showToast('Tidak ada yang disalin');
+                    }
+                    this.closeMobileContextMenu();
+                },
+                disabled: !this.copiedNode
+            },
+            {
+                icon: '🔗',
+                text: 'Connect',
+                action: () => {
+                    this.selectedNode = node;
+                    this.connectSourceNode = node;
+                    this.connectMode = true;
+                    const btn = document.getElementById('connectBtn');
+                    btn.classList.add('active');
+                    const btnIcon = btn.querySelector('.btn-icon');
+                    const btnText = btn.querySelector('.btn-text');
+                    if (btnIcon) btnIcon.textContent = '✓';
+                    if (btnText) btnText.textContent = 'Mode Aktif';
+                    this.showToast('Tap node lain untuk menghubungkan');
+                    this.closeMobileContextMenu();
+                }
+            },
+            {
+                icon: '🗑️',
+                text: 'Delete',
+                action: () => {
+                    if (confirm('Hapus node ini?')) {
+                        this.deleteNode(node);
+                        this.showToast('Node dihapus');
+                    }
+                    this.closeMobileContextMenu();
+                },
+                danger: true
+            }
+        ];
+        
+        menuItems.forEach(item => {
+            const btn = document.createElement('button');
+            btn.className = 'mobile-menu-item' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
+            btn.innerHTML = `<span class="menu-icon">${item.icon}</span><span class="menu-text">${item.text}</span>`;
+            if (!item.disabled) {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    item.action();
+                });
+            }
+            menu.appendChild(btn);
+        });
+        
+        // Position menu
+        const menuWidth = 200;
+        const menuHeight = menuItems.length * 50;
+        let menuX = x - menuWidth / 2;
+        let menuY = y - menuHeight - 20; // Above the touch point
+        
+        // Keep menu within viewport
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        if (menuX < 10) menuX = 10;
+        if (menuX + menuWidth > viewportWidth - 10) menuX = viewportWidth - menuWidth - 10;
+        if (menuY < 10) menuY = y + 20; // Show below if not enough space above
+        if (menuY + menuHeight > viewportHeight - 10) menuY = viewportHeight - menuHeight - 10;
+        
+        menu.style.left = menuX + 'px';
+        menu.style.top = menuY + 'px';
+        
+        document.body.appendChild(menu);
+        this.mobileContextMenu = menu;
+        
+        // Close menu when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', this.closeMobileContextMenuHandler);
+            document.addEventListener('touchstart', this.closeMobileContextMenuHandler);
+        }, 100);
+        
+        // Animate in
+        setTimeout(() => menu.classList.add('show'), 10);
+    }
+    
+    closeMobileContextMenu() {
+        if (this.mobileContextMenu) {
+            this.mobileContextMenu.classList.remove('show');
+            setTimeout(() => {
+                if (this.mobileContextMenu && this.mobileContextMenu.parentNode) {
+                    this.mobileContextMenu.parentNode.removeChild(this.mobileContextMenu);
+                }
+                this.mobileContextMenu = null;
+            }, 200);
+            document.removeEventListener('click', this.closeMobileContextMenuHandler);
+            document.removeEventListener('touchstart', this.closeMobileContextMenuHandler);
+        }
+    }
+    
+    closeMobileContextMenuHandler = () => {
+        this.closeMobileContextMenu();
+    }
+    
+    showToast(message) {
+        // Remove existing toast if any
+        const existingToast = document.getElementById('toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        const toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        // Remove after 2 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }
 }
 
 // Initialize mind map when page loads
 let mindMap;
 document.addEventListener('DOMContentLoaded', () => {
     mindMap = new MindMap();
-});
-
-// Handle add node button click with position
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('addNodeBtn').addEventListener('click', (e) => {
-        // Add node at center of visible area
-        const container = document.getElementById('canvasContainer');
-        const rect = container.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        mindMap.addNode(centerX, centerY);
-    });
 });

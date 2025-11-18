@@ -2,24 +2,67 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ec4899">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Vyna Mind Mapping - Buat Peta Pikiran Anda</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🌸 Vyna Mind Mapping</h1>
+            <div class="header-title">
+                <h1>🌸 Vyna Mind Mapping</h1>
+                <button id="toggleInfoBtn" class="btn btn-info-toggle" title="Tampilkan/Sembunyikan Petunjuk">
+                    <span class="info-icon">💡</span>
+                    <span class="info-text">Petunjuk</span>
+                </button>
+            </div>
             <div class="controls">
-                <button id="addNodeBtn" class="btn btn-primary">+ Tambah Node</button>
-                <button id="connectBtn" class="btn btn-info">🔗 Hubungkan Node</button>
-                <button id="clearBtn" class="btn btn-secondary">🗑️ Hapus Semua</button>
-                <button id="downloadBtn" class="btn btn-success">📥 Download PNG</button>
+                <button id="addNodeBtn" class="btn btn-primary">
+                    <span class="btn-icon">+</span>
+                    <span class="btn-text">Tambah Node</span>
+                </button>
+                <button id="connectBtn" class="btn btn-info">
+                    <span class="btn-icon">🔗</span>
+                    <span class="btn-text">Hubungkan</span>
+                </button>
+                <button id="clearBtn" class="btn btn-secondary">
+                    <span class="btn-icon">🗑️</span>
+                    <span class="btn-text">Hapus Semua</span>
+                </button>
+                <button id="downloadBtn" class="btn btn-success">
+                    <span class="btn-icon">📥</span>
+                    <span class="btn-text">Download</span>
+                </button>
             </div>
         </header>
         
-        <div class="info">
-            <p>💡 <strong>Cara menggunakan:</strong> Klik "Tambah Node" untuk membuat node baru, klik & geser node untuk memindahkan, double-click untuk mengedit teks. <strong>Hubungkan:</strong> Klik "Hubungkan Node" lalu drag dari node ke node lain, atau klik 2 node secara berurutan. <strong>Hapus Koneksi:</strong> Klik koneksi lalu tekan Delete atau Ctrl+Click. <strong>Copy/Paste:</strong> Ctrl+C / Ctrl+V. <strong>Zoom:</strong> Ctrl+Scroll / Ctrl+Plus/Minus | <strong>Pan:</strong> Space+Drag / Middle Mouse</p>
+        <div class="info" id="infoPanel">
+            <div class="info-content">
+                <p><strong>💡 Cara menggunakan:</strong></p>
+                <ul class="desktop-instructions">
+                    <li><strong>Tambah Node:</strong> Klik tombol "Tambah Node"</li>
+                    <li><strong>Pindahkan Node:</strong> Klik & geser node</li>
+                    <li><strong>Edit Node:</strong> Double-click node</li>
+                    <li><strong>Hubungkan Node:</strong> Klik "Hubungkan" lalu drag dari node ke node lain</li>
+                    <li><strong>Hapus Node:</strong> Pilih node, tekan Delete</li>
+                    <li><strong>Hapus Koneksi:</strong> Klik koneksi, tekan Delete atau Ctrl+Click</li>
+                    <li><strong>Copy/Paste:</strong> Ctrl+C / Ctrl+V</li>
+                    <li><strong>Zoom:</strong> Ctrl+Scroll / gunakan tombol zoom</li>
+                    <li><strong>Pan:</strong> Space+Drag / Middle Mouse</li>
+                </ul>
+                <ul class="mobile-instructions">
+                    <li><strong>Tambah Node:</strong> Tap tombol + di pojok kanan bawah</li>
+                    <li><strong>Geser Node:</strong> Tap & geser node dengan jari</li>
+                    <li><strong>Edit Node:</strong> Double-tap node atau long-press → Edit</li>
+                    <li><strong>Long-Press Node:</strong> Tahan node untuk menu (Copy, Paste, Connect, Delete)</li>
+                    <li><strong>Hubungkan Node:</strong> Long-press → Connect, lalu tap node lain</li>
+                    <li><strong>Zoom:</strong> Pinch dengan 2 jari atau gunakan tombol zoom</li>
+                    <li><strong>Pan Canvas:</strong> Geser dengan 1 jari di area kosong</li>
+                </ul>
+            </div>
         </div>
         
         <div class="canvas-wrapper">
@@ -53,6 +96,11 @@
             </div>
         </div>
     </div>
+    
+    <!-- Floating Action Button for Mobile -->
+    <button id="fabAddNode" class="fab" title="Tambah Node">
+        <span class="fab-icon">+</span>
+    </button>
     
     <div id="editModal" class="modal">
         <div class="modal-content">
