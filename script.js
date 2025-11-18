@@ -64,7 +64,7 @@ class MindMap {
         document.querySelector('.close').addEventListener('click', () => this.closeEditModal());
         this.toggleInfoBtn.addEventListener('click', () => this.toggleInfoPanel());
         
-        // FAB for mobile
+        // FAB for mobiles
         const fabBtn = document.getElementById('fabAddNode');
         if (fabBtn) {
             fabBtn.addEventListener('click', () => {
