@@ -256,8 +256,9 @@ class MindMap {
                             }
                             // Cancel drag if context menu is shown
                             this.isDragging = false;
+                            this.container.classList.remove('node-dragging');
                         }
-                    }, 600); // 600ms long-press - lebih lama agar lebih mudah drag
+                    }, 2000); // 2000ms (2 detik) long-press - prioritaskan drag
                 }
                 
                 const mouseEvent = {
@@ -274,21 +275,29 @@ class MindMap {
         };
         
         let touchMoveHandler = (e) => {
-            // Cancel long-press if moved
+            // Cancel long-press if moved - prioritaskan drag
             if (this.longPressTimer && e.touches.length === 1) {
                 const touch = e.touches[0];
                 const moveDistance = Math.sqrt(
                     Math.pow(touch.clientX - this.touchStartPos.x, 2) +
                     Math.pow(touch.clientY - this.touchStartPos.y, 2)
                 );
-                if (moveDistance > 5) { // 5px threshold - menandai sudah bergerak
+                // Threshold rendah agar drag lebih mudah
+                if (moveDistance > 3) { // 3px threshold - menandai sudah bergerak
                     this.hasMoved = true;
                 }
-                if (moveDistance > 15) { // 15px threshold - cancel long-press
+                if (moveDistance > 8) { // 8px threshold - cancel long-press, prioritaskan drag
                     clearTimeout(this.longPressTimer);
                     this.longPressTimer = null;
                     this.longPressNode = null;
                 }
+            }
+            
+            // Cancel long-press jika sudah mulai drag
+            if (this.isDragging && this.longPressTimer) {
+                clearTimeout(this.longPressTimer);
+                this.longPressTimer = null;
+                this.longPressNode = null;
             }
             
             // Handle pinch to zoom with two fingers
@@ -864,6 +873,10 @@ class MindMap {
                 // Add dragging class to container on mobile to prevent scrolling
                 if (this.isMobile) {
                     this.container.classList.add('node-dragging');
+                    // Haptic feedback saat mulai drag
+                    if (navigator.vibrate) {
+                        navigator.vibrate(10);
+                    }
                 }
                 
                 // Calculate drag offset in SVG coordinates
@@ -944,6 +957,11 @@ class MindMap {
             if (nodeElement) {
                 nodeElement.classList.remove('dragging');
             }
+        }
+        
+        // Haptic feedback saat selesai drag di mobile
+        if (this.isDragging && this.isMobile && navigator.vibrate) {
+            navigator.vibrate(10);
         }
         
         // Remove dragging class from container

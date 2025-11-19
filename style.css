@@ -12,6 +12,8 @@ body {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     overflow: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
 }
 
 @media (max-width: 768px) {
@@ -386,6 +388,8 @@ body {
     background: #fafafa;
     cursor: default;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
 }
 
 /* Custom scrollbar */
@@ -1025,20 +1029,51 @@ body {
 
 /* Visual feedback for dragging on mobile */
 .node.dragging {
-    opacity: 0.85;
-    filter: drop-shadow(0 8px 16px rgba(236, 72, 153, 0.5));
+    opacity: 0.9;
+    filter: drop-shadow(0 12px 20px rgba(236, 72, 153, 0.6));
+    transform: scale(1.05);
+    transition: none !important;
 }
 
 .node.dragging .node-rect {
     stroke: #db2777;
     stroke-width: 5;
     fill: #fce7f3;
+    animation: dragPulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes dragPulse {
+    from {
+        filter: drop-shadow(0 4px 8px rgba(219, 39, 119, 0.4));
+    }
+    to {
+        filter: drop-shadow(0 8px 16px rgba(219, 39, 119, 0.6));
+    }
 }
 
 /* Prevent scrolling when dragging nodes on mobile */
 @media (max-width: 768px) {
     .canvas-container.node-dragging {
-        overflow: hidden;
+        overflow: hidden !important;
+        touch-action: none !important;
+        -webkit-overflow-scrolling: auto;
+        overscroll-behavior: none;
+    }
+    
+    /* Extra visual feedback on mobile */
+    .node.dragging {
+        transform: scale(1.08);
+        z-index: 9999;
+        pointer-events: none;
+    }
+    
+    /* Nodes should capture touch events */
+    .node {
+        touch-action: none;
+    }
+    
+    .node-rect {
+        pointer-events: all;
         touch-action: none;
     }
 }
