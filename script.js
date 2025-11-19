@@ -31,6 +31,7 @@ class MindMap {
         this.longPressNode = null;
         this.touchStartPos = { x: 0, y: 0 };
         this.mobileContextMenu = null;
+        this.hasMoved = false;
         
         this.init();
     }
@@ -236,6 +237,7 @@ class MindMap {
             if (e.touches.length === 1) {
                 const touch = e.touches[0];
                 this.touchStartPos = { x: touch.clientX, y: touch.clientY };
+                this.hasMoved = false;
                 
                 // Close mobile context menu if open
                 this.closeMobileContextMenu();
@@ -245,12 +247,17 @@ class MindMap {
                 if (node && this.isMobile) {
                     this.longPressNode = node;
                     this.longPressTimer = setTimeout(() => {
-                        this.showMobileContextMenu(node, touch.clientX, touch.clientY);
-                        // Haptic feedback if available
-                        if (navigator.vibrate) {
-                            navigator.vibrate(50);
+                        // Only show context menu if user hasn't moved
+                        if (!this.hasMoved && !this.isDragging) {
+                            this.showMobileContextMenu(node, touch.clientX, touch.clientY);
+                            // Haptic feedback if available
+                            if (navigator.vibrate) {
+                                navigator.vibrate(50);
+                            }
+                            // Cancel drag if context menu is shown
+                            this.isDragging = false;
                         }
-                    }, 500); // 500ms long-press
+                    }, 600); // 600ms long-press - lebih lama agar lebih mudah drag
                 }
                 
                 const mouseEvent = {
@@ -268,13 +275,16 @@ class MindMap {
         
         let touchMoveHandler = (e) => {
             // Cancel long-press if moved
-            if (this.longPressTimer) {
+            if (this.longPressTimer && e.touches.length === 1) {
                 const touch = e.touches[0];
                 const moveDistance = Math.sqrt(
                     Math.pow(touch.clientX - this.touchStartPos.x, 2) +
                     Math.pow(touch.clientY - this.touchStartPos.y, 2)
                 );
-                if (moveDistance > 10) { // 10px threshold
+                if (moveDistance > 5) { // 5px threshold - menandai sudah bergerak
+                    this.hasMoved = true;
+                }
+                if (moveDistance > 15) { // 15px threshold - cancel long-press
                     clearTimeout(this.longPressTimer);
                     this.longPressTimer = null;
                     this.longPressNode = null;
@@ -340,24 +350,29 @@ class MindMap {
             
             const touch = e.changedTouches[0];
             
-            // Handle double tap for editing nodes on mobile
-            if (!this.hasDragged) {
+            // Handle double tap for editing nodes on mobile (only if not dragged)
+            if (!this.hasDragged && !this.hasMoved) {
                 const node = this.getNodeAt(touch.clientX, touch.clientY);
                 const currentTime = Date.now();
                 const tapDelay = currentTime - this.lastTapTime;
                 
-                if (node && this.lastTapNode === node && tapDelay < 300) {
+                if (node && this.lastTapNode === node && tapDelay < 400) {
                     // Double tap detected - open edit modal
                     this.selectedNode = node;
                     this.openEditModal(node);
                     this.lastTapTime = 0;
                     this.lastTapNode = null;
+                    // Reset flags
+                    this.hasMoved = false;
                     return;
                 }
                 
                 this.lastTapTime = currentTime;
                 this.lastTapNode = node;
             }
+            
+            // Reset moved flag
+            this.hasMoved = false;
             
             const mouseEvent = {
                 clientX: touch.clientX,
@@ -846,6 +861,11 @@ class MindMap {
                 this.isDragging = true;
                 this.selectedNode = node;
                 
+                // Add dragging class to container on mobile to prevent scrolling
+                if (this.isMobile) {
+                    this.container.classList.add('node-dragging');
+                }
+                
                 // Calculate drag offset in SVG coordinates
                 const scrollX = this.container.scrollLeft;
                 const scrollY = this.container.scrollTop;
@@ -925,6 +945,9 @@ class MindMap {
                 nodeElement.classList.remove('dragging');
             }
         }
+        
+        // Remove dragging class from container
+        this.container.classList.remove('node-dragging');
         
         this.isDragging = false;
         
@@ -1425,10 +1448,18 @@ class MindMap {
             btn.className = 'mobile-menu-item' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
             btn.innerHTML = `<span class="menu-icon">${item.icon}</span><span class="menu-text">${item.text}</span>`;
             if (!item.disabled) {
-                btn.addEventListener('click', (e) => {
+                // Use both click and touchend for better compatibility
+                const handleAction = (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
+                    // Haptic feedback
+                    if (navigator.vibrate) {
+                        navigator.vibrate(20);
+                    }
                     item.action();
-                });
+                };
+                btn.addEventListener('click', handleAction);
+                btn.addEventListener('touchend', handleAction);
             }
             menu.appendChild(btn);
         });
@@ -1455,9 +1486,10 @@ class MindMap {
         this.mobileContextMenu = menu;
         
         // Close menu when clicking outside
+        this.closeMobileContextMenuHandler = this.createCloseMobileContextMenuHandler();
         setTimeout(() => {
-            document.addEventListener('click', this.closeMobileContextMenuHandler);
-            document.addEventListener('touchstart', this.closeMobileContextMenuHandler);
+            document.addEventListener('click', this.closeMobileContextMenuHandler, true);
+            document.addEventListener('touchstart', this.closeMobileContextMenuHandler, true);
         }, 100);
         
         // Animate in
@@ -1473,13 +1505,21 @@ class MindMap {
                 }
                 this.mobileContextMenu = null;
             }, 200);
-            document.removeEventListener('click', this.closeMobileContextMenuHandler);
-            document.removeEventListener('touchstart', this.closeMobileContextMenuHandler);
+            if (this.closeMobileContextMenuHandler) {
+                document.removeEventListener('click', this.closeMobileContextMenuHandler, true);
+                document.removeEventListener('touchstart', this.closeMobileContextMenuHandler, true);
+            }
         }
     }
     
-    closeMobileContextMenuHandler = () => {
-        this.closeMobileContextMenu();
+    createCloseMobileContextMenuHandler() {
+        return (e) => {
+            // Don't close if clicking inside the menu
+            if (e.target.closest('.mobile-context-menu')) {
+                return;
+            }
+            this.closeMobileContextMenu();
+        };
     }
     
     showToast(message) {
