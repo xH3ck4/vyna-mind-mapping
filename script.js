@@ -27,10 +27,7 @@ class MindMap {
         this.lastTapNode = null;
         this.lastPinchDistance = 0;
         this.isPinching = false;
-        this.longPressTimer = null;
-        this.longPressNode = null;
         this.touchStartPos = { x: 0, y: 0 };
-        this.mobileContextMenu = null;
         this.hasMoved = false;
         
         this.init();
@@ -231,35 +228,13 @@ class MindMap {
             this.updateCursor();
         });
         
-        // Touch event handlers for mobile
+        // Touch event handlers for mobile - SIMPLIFIED for better drag
         let touchStartHandler = (e) => {
             // Convert touch to mouse-like event
             if (e.touches.length === 1) {
                 const touch = e.touches[0];
                 this.touchStartPos = { x: touch.clientX, y: touch.clientY };
                 this.hasMoved = false;
-                
-                // Close mobile context menu if open
-                this.closeMobileContextMenu();
-                
-                // Check if touching a node for long-press
-                const node = this.getNodeAt(touch.clientX, touch.clientY);
-                if (node && this.isMobile) {
-                    this.longPressNode = node;
-                    this.longPressTimer = setTimeout(() => {
-                        // Only show context menu if user hasn't moved
-                        if (!this.hasMoved && !this.isDragging) {
-                            this.showMobileContextMenu(node, touch.clientX, touch.clientY);
-                            // Haptic feedback if available
-                            if (navigator.vibrate) {
-                                navigator.vibrate(50);
-                            }
-                            // Cancel drag if context menu is shown
-                            this.isDragging = false;
-                            this.container.classList.remove('node-dragging');
-                        }
-                    }, 2000); // 2000ms (2 detik) long-press - prioritaskan drag
-                }
                 
                 const mouseEvent = {
                     clientX: touch.clientX,
@@ -275,29 +250,16 @@ class MindMap {
         };
         
         let touchMoveHandler = (e) => {
-            // Cancel long-press if moved - prioritaskan drag
-            if (this.longPressTimer && e.touches.length === 1) {
+            // Track movement for drag detection
+            if (e.touches.length === 1) {
                 const touch = e.touches[0];
                 const moveDistance = Math.sqrt(
                     Math.pow(touch.clientX - this.touchStartPos.x, 2) +
                     Math.pow(touch.clientY - this.touchStartPos.y, 2)
                 );
-                // Threshold rendah agar drag lebih mudah
-                if (moveDistance > 3) { // 3px threshold - menandai sudah bergerak
+                if (moveDistance > 3) {
                     this.hasMoved = true;
                 }
-                if (moveDistance > 8) { // 8px threshold - cancel long-press, prioritaskan drag
-                    clearTimeout(this.longPressTimer);
-                    this.longPressTimer = null;
-                    this.longPressNode = null;
-                }
-            }
-            
-            // Cancel long-press jika sudah mulai drag
-            if (this.isDragging && this.longPressTimer) {
-                clearTimeout(this.longPressTimer);
-                this.longPressTimer = null;
-                this.longPressNode = null;
             }
             
             // Handle pinch to zoom with two fingers
@@ -339,13 +301,6 @@ class MindMap {
         };
         
         let touchEndHandler = (e) => {
-            // Clear long-press timer
-            if (this.longPressTimer) {
-                clearTimeout(this.longPressTimer);
-                this.longPressTimer = null;
-                this.longPressNode = null;
-            }
-            
             // Reset pinch state
             if (e.touches.length < 2) {
                 this.isPinching = false;
@@ -935,8 +890,9 @@ class MindMap {
             const svgX = (screenX + scrollX - 2500) / this.zoomLevel;
             const svgY = (screenY + scrollY - 2500) / this.zoomLevel;
             
-            this.selectedNode.x = svgX - this.dragOffset.x / this.zoomLevel;
-            this.selectedNode.y = svgY - this.dragOffset.y / this.zoomLevel;
+            // Update node position with correct offset
+            this.selectedNode.x = svgX - this.dragOffset.x;
+            this.selectedNode.y = svgY - this.dragOffset.y;
             
             // Add dragging class for visual feedback
             const nodeElement = this.nodesGroup.querySelector(`[data-id="${this.selectedNode.id}"]`);
@@ -1380,188 +1336,6 @@ class MindMap {
         }
     }
     
-    showMobileContextMenu(node, x, y) {
-        // Close any existing menu
-        this.closeMobileContextMenu();
-        
-        // Create mobile context menu
-        const menu = document.createElement('div');
-        menu.className = 'mobile-context-menu';
-        menu.id = 'mobileContextMenu';
-        
-        // Haptic feedback
-        if (navigator.vibrate) {
-            navigator.vibrate(50);
-        }
-        
-        // Menu items
-        const menuItems = [
-            {
-                icon: '✏️',
-                text: 'Edit',
-                action: () => {
-                    this.selectedNode = node;
-                    this.openEditModal(node);
-                    this.closeMobileContextMenu();
-                }
-            },
-            {
-                icon: '📋',
-                text: 'Copy',
-                action: () => {
-                    this.selectedNode = node;
-                    this.copyNode();
-                    this.showToast('Node disalin!');
-                    this.closeMobileContextMenu();
-                }
-            },
-            {
-                icon: '📌',
-                text: 'Paste',
-                action: () => {
-                    if (this.copiedNode) {
-                        this.selectedNode = node;
-                        this.pasteNode();
-                        this.showToast('Node ditempel!');
-                    } else {
-                        this.showToast('Tidak ada yang disalin');
-                    }
-                    this.closeMobileContextMenu();
-                },
-                disabled: !this.copiedNode
-            },
-            {
-                icon: '🔗',
-                text: 'Connect',
-                action: () => {
-                    this.selectedNode = node;
-                    this.connectSourceNode = node;
-                    this.connectMode = true;
-                    const btn = document.getElementById('connectBtn');
-                    btn.classList.add('active');
-                    const btnIcon = btn.querySelector('.btn-icon');
-                    const btnText = btn.querySelector('.btn-text');
-                    if (btnIcon) btnIcon.textContent = '✓';
-                    if (btnText) btnText.textContent = 'Mode Aktif';
-                    this.showToast('Tap node lain untuk menghubungkan');
-                    this.closeMobileContextMenu();
-                }
-            },
-            {
-                icon: '🗑️',
-                text: 'Delete',
-                action: () => {
-                    if (confirm('Hapus node ini?')) {
-                        this.deleteNode(node);
-                        this.showToast('Node dihapus');
-                    }
-                    this.closeMobileContextMenu();
-                },
-                danger: true
-            }
-        ];
-        
-        menuItems.forEach(item => {
-            const btn = document.createElement('button');
-            btn.className = 'mobile-menu-item' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
-            btn.innerHTML = `<span class="menu-icon">${item.icon}</span><span class="menu-text">${item.text}</span>`;
-            if (!item.disabled) {
-                // Use both click and touchend for better compatibility
-                const handleAction = (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    // Haptic feedback
-                    if (navigator.vibrate) {
-                        navigator.vibrate(20);
-                    }
-                    item.action();
-                };
-                btn.addEventListener('click', handleAction);
-                btn.addEventListener('touchend', handleAction);
-            }
-            menu.appendChild(btn);
-        });
-        
-        // Position menu
-        const menuWidth = 200;
-        const menuHeight = menuItems.length * 50;
-        let menuX = x - menuWidth / 2;
-        let menuY = y - menuHeight - 20; // Above the touch point
-        
-        // Keep menu within viewport
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        
-        if (menuX < 10) menuX = 10;
-        if (menuX + menuWidth > viewportWidth - 10) menuX = viewportWidth - menuWidth - 10;
-        if (menuY < 10) menuY = y + 20; // Show below if not enough space above
-        if (menuY + menuHeight > viewportHeight - 10) menuY = viewportHeight - menuHeight - 10;
-        
-        menu.style.left = menuX + 'px';
-        menu.style.top = menuY + 'px';
-        
-        document.body.appendChild(menu);
-        this.mobileContextMenu = menu;
-        
-        // Close menu when clicking outside
-        this.closeMobileContextMenuHandler = this.createCloseMobileContextMenuHandler();
-        setTimeout(() => {
-            document.addEventListener('click', this.closeMobileContextMenuHandler, true);
-            document.addEventListener('touchstart', this.closeMobileContextMenuHandler, true);
-        }, 100);
-        
-        // Animate in
-        setTimeout(() => menu.classList.add('show'), 10);
-    }
-    
-    closeMobileContextMenu() {
-        if (this.mobileContextMenu) {
-            this.mobileContextMenu.classList.remove('show');
-            setTimeout(() => {
-                if (this.mobileContextMenu && this.mobileContextMenu.parentNode) {
-                    this.mobileContextMenu.parentNode.removeChild(this.mobileContextMenu);
-                }
-                this.mobileContextMenu = null;
-            }, 200);
-            if (this.closeMobileContextMenuHandler) {
-                document.removeEventListener('click', this.closeMobileContextMenuHandler, true);
-                document.removeEventListener('touchstart', this.closeMobileContextMenuHandler, true);
-            }
-        }
-    }
-    
-    createCloseMobileContextMenuHandler() {
-        return (e) => {
-            // Don't close if clicking inside the menu
-            if (e.target.closest('.mobile-context-menu')) {
-                return;
-            }
-            this.closeMobileContextMenu();
-        };
-    }
-    
-    showToast(message) {
-        // Remove existing toast if any
-        const existingToast = document.getElementById('toast');
-        if (existingToast) {
-            existingToast.remove();
-        }
-        
-        const toast = document.createElement('div');
-        toast.id = 'toast';
-        toast.className = 'toast';
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        
-        // Animate in
-        setTimeout(() => toast.classList.add('show'), 10);
-        
-        // Remove after 2 seconds
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 2000);
-    }
 }
 
 // Initialize mind map when page loads

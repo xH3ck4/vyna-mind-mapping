@@ -389,7 +389,12 @@ body {
     cursor: default;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    touch-action: pan-x pan-y;
+}
+
+@media (max-width: 768px) {
+    .canvas-container {
+        touch-action: none;
+    }
 }
 
 /* Custom scrollbar */
@@ -549,6 +554,9 @@ body {
 .node {
     cursor: move;
     user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .node-rect {
@@ -794,10 +802,14 @@ body {
         cursor: default;
         -webkit-user-select: none;
         user-select: none;
+        touch-action: none;
+        pointer-events: all;
     }
     
     .node-rect {
         stroke-width: 4;
+        pointer-events: all;
+        touch-action: none;
     }
     
     .btn:hover {
@@ -901,131 +913,9 @@ body {
     }
 }
 
-/* Mobile Context Menu */
-.mobile-context-menu {
-    position: fixed;
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    padding: 8px;
-    z-index: 10000;
-    min-width: 200px;
-    opacity: 0;
-    transform: scale(0.8) translateY(-10px);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none;
-}
+/* Mobile Context Menu - REMOVED (fokus pada drag) */
 
-.mobile-context-menu.show {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-    pointer-events: auto;
-}
-
-.mobile-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 12px 16px;
-    border: none;
-    background: white;
-    border-radius: 10px;
-    font-size: 16px;
-    font-weight: 500;
-    color: #333;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-bottom: 4px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-}
-
-.mobile-menu-item:last-child {
-    margin-bottom: 0;
-}
-
-.mobile-menu-item:hover {
-    background: #f5f5f5;
-}
-
-.mobile-menu-item:active {
-    transform: scale(0.95);
-    background: #e5e5e5;
-}
-
-.mobile-menu-item.danger {
-    color: #dc2626;
-}
-
-.mobile-menu-item.danger:hover {
-    background: #fef2f2;
-}
-
-.mobile-menu-item.danger:active {
-    background: #fee2e2;
-    transform: scale(0.95);
-}
-
-.mobile-menu-item.disabled {
-    opacity: 0.4;
-    pointer-events: none;
-    cursor: not-allowed;
-}
-
-.mobile-menu-item .menu-icon {
-    font-size: 20px;
-    line-height: 1;
-}
-
-.mobile-menu-item .menu-text {
-    flex: 1;
-    text-align: left;
-}
-
-/* Toast Notification */
-.toast {
-    position: fixed;
-    bottom: -100px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.85);
-    color: white;
-    padding: 12px 24px;
-    border-radius: 25px;
-    font-size: 14px;
-    font-weight: 500;
-    z-index: 10001;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    white-space: nowrap;
-    max-width: 90%;
-    text-align: center;
-}
-
-.toast.show {
-    bottom: 80px;
-}
-
-@media (max-width: 768px) {
-    .toast.show {
-        bottom: 60px;
-    }
-}
-
-@media (max-width: 480px) {
-    .toast {
-        padding: 10px 20px;
-        font-size: 13px;
-        max-width: 85%;
-    }
-    
-    .toast.show {
-        bottom: 40px;
-    }
-}
+/* Toast Notification - Removed (tidak diperlukan tanpa context menu) */
 
 /* Visual feedback for dragging on mobile */
 .node.dragging {
@@ -1064,16 +954,26 @@ body {
     .node.dragging {
         transform: scale(1.08);
         z-index: 9999;
-        pointer-events: none;
     }
     
-    /* Nodes should capture touch events */
+    /* Ensure nodes can be touched and dragged */
     .node {
         touch-action: none;
+        pointer-events: all;
     }
     
     .node-rect {
         pointer-events: all;
+        touch-action: none;
+    }
+    
+    .node-text {
+        pointer-events: none;
+        touch-action: none;
+    }
+    
+    /* SVG Canvas should allow touch */
+    #svgCanvas {
         touch-action: none;
     }
 }
@@ -1094,22 +994,7 @@ body {
     animation: none;
 }
 
-/* Improve mobile button feedback */
-@media (max-width: 768px) {
-    .mobile-menu-item {
-        font-size: 15px;
-        padding: 14px 16px;
-        min-height: 48px;
-    }
-    
-    .mobile-menu-item .menu-icon {
-        font-size: 22px;
-    }
-    
-    .mobile-context-menu {
-        min-width: 220px;
-    }
-}
+/* Mobile feedback removed - fokus pada drag */
 
 /* Show/Hide instructions based on device */
 .mobile-instructions {
